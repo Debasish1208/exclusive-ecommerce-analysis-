@@ -49,4 +49,4 @@ sqlite3 exclusive.db
 
 ## About
 
-Built by **Debasish Panda** — B.Tech Computer Science (2025), pursuing an Master's in Data Analytics.
+Built by **Debasish Panda** — B.Tech Computer Science (2025), pursuing an MSc in Data Analytics.
