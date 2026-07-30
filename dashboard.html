@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Exclusive — Interactive Dashboard | Debasish Panda</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="dashboard_data.js"></script>
+<style>
+  :root{
+    --paper:#F6F2E9; --paper-line:#E3DAC5; --ink:#1E2A2E; --ink-soft:#4B5A5C;
+    --ledger:#0E3B36; --ledger-soft:#175048; --gold:#B4862B; --gold-soft:#D9B571;
+    --rose:#9C3B3B; --card:#FFFEFB;
+    --mono:'IBM Plex Mono','Courier New',monospace;
+    --serif:'Source Serif 4',Georgia,'Times New Roman',serif;
+    --sans:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink); font-family:var(--sans); line-height:1.5;
+    background-image:linear-gradient(var(--paper-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--paper-line) 1px, transparent 1px);
+    background-size:48px 48px;
+  }
+  .wrap{max-width:1280px; margin:0 auto; padding:0 28px;}
+  header{padding:36px 0 20px; border-bottom:2px solid var(--ink);}
+  .ledger-tag{
+    font-family:var(--mono); font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ledger); background:rgba(14,59,54,0.08); border:1px solid var(--ledger-soft);
+    display:inline-block; padding:4px 10px; border-radius:2px; margin-bottom:16px;
+  }
+  h1{font-family:var(--serif); font-size:clamp(1.7rem,3.6vw,2.6rem); margin:0 0 6px; font-weight:600;}
+  .sub{color:var(--ink-soft); font-size:.98rem; max-width:640px; margin:0 0 4px;}
+  a.back{font-family:var(--mono); font-size:12.5px; color:var(--ledger); text-decoration:none; border-bottom:1px solid var(--ledger-soft);}
+
+  /* Filter bar */
+  .filters{
+    display:flex; flex-wrap:wrap; gap:16px; align-items:flex-end;
+    background:var(--card); border:1px solid var(--ink); padding:18px 20px; margin:24px 0 28px;
+  }
+  .filter-group{display:flex; flex-direction:column; gap:6px;}
+  .filter-group label{font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft);}
+  select, .chip-group{font-family:var(--sans);}
+  select{
+    font-size:13.5px; padding:7px 10px; border:1px solid var(--ink); background:#fff; color:var(--ink);
+    border-radius:2px; min-width:150px;
+  }
+  .chip-group{display:flex; flex-wrap:wrap; gap:6px; max-width:420px;}
+  .chip{
+    font-family:var(--mono); font-size:11.5px; border:1px solid var(--ink); padding:5px 10px;
+    border-radius:999px; background:#fff; cursor:pointer; user-select:none; transition:all .1s ease;
+  }
+  .chip.active{background:var(--ledger); color:#fff; border-color:var(--ledger);}
+  .reset-btn{
+    font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.05em;
+    background:var(--gold); color:#fff; border:none; padding:9px 16px; border-radius:2px; cursor:pointer;
+    height:34px;
+  }
+  .reset-btn:hover{background:var(--gold-soft);}
+  .active-filter-note{font-family:var(--mono); font-size:12px; color:var(--gold); margin:-10px 0 20px;}
+
+  /* KPI row */
+  .kpi-row{display:grid; grid-template-columns:repeat(5,1fr); border:1px solid var(--ink); margin-bottom:28px;}
+  .kpi-cell{padding:18px 16px; border-right:1px solid var(--ink); background:var(--card);}
+  .kpi-cell:last-child{border-right:none;}
+  .cell-ref{font-family:var(--mono); font-size:10.5px; color:var(--gold);}
+  .kpi-value{font-family:var(--serif); font-size:1.6rem; font-weight:600; margin:5px 0 3px; color:var(--ledger);}
+  .kpi-label{font-size:11.5px; color:var(--ink-soft);}
+
+  .grid{display:grid; grid-template-columns:2fr 1fr; gap:20px; margin-bottom:20px;}
+  .grid3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:20px; margin-bottom:20px;}
+  @media (max-width:900px){ .grid, .grid3{grid-template-columns:1fr;} .kpi-row{grid-template-columns:1fr 1fr;} }
+
+  .chart-card{background:var(--card); border:1px solid var(--ink); padding:18px; border-radius:2px;}
+  .chart-card h3{
+    font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.07em;
+    margin:0 0 14px; color:var(--ink-soft);
+  }
+
+  /* table */
+  .table-card{background:var(--card); border:1px solid var(--ink); padding:0; overflow:hidden; margin-bottom:40px;}
+  .table-head{
+    display:flex; justify-content:space-between; align-items:center; padding:14px 18px;
+    border-bottom:1px solid var(--ink); background:var(--ledger); color:#fff;
+  }
+  .table-head h3{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.07em; margin:0;}
+  table{width:100%; border-collapse:collapse; font-size:13px; font-family:var(--mono);}
+  th, td{padding:8px 14px; text-align:left; border-bottom:1px solid var(--paper-line);}
+  th{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); background:#FBF8F1;}
+  tr:hover td{background:#F3EEE0;}
+  .pager{display:flex; justify-content:flex-end; gap:8px; padding:12px 18px; font-family:var(--mono); font-size:12px;}
+  .pager button{
+    border:1px solid var(--ink); background:#fff; padding:4px 10px; cursor:pointer; border-radius:2px; font-family:var(--mono);
+  }
+  .pager button:disabled{opacity:.35; cursor:default;}
+
+  footer{padding:20px 0 50px; font-family:var(--mono); font-size:12px; color:var(--ink-soft); border-top:1px solid var(--paper-line); margin-top:10px;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="ledger-tag">Interactive Dashboard · Power BI-style</span>
+    <h1>Exclusive — Transaction Explorer</h1>
+    <p class="sub">Filter 10,502 cleaned transactions by month, category, city, and payment method — every KPI and chart below recalculates live, the same way the Power BI layer of this project drills down for stakeholders.</p>
+    <a class="back" href="index.html">← Back to case study</a>
+  </header>
+
+  <div class="filters">
+    <div class="filter-group">
+      <label>From month</label>
+      <select id="fMonthFrom"></select>
+    </div>
+    <div class="filter-group">
+      <label>To month</label>
+      <select id="fMonthTo"></select>
+    </div>
+    <div class="filter-group">
+      <label>City</label>
+      <select id="fCity"><option value="">All cities</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Payment method</label>
+      <select id="fPayment"><option value="">All methods</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Order status</label>
+      <select id="fStatus">
+        <option value="">All statuses</option>
+        <option value="Delivered">Delivered only</option>
+        <option value="Cancelled">Cancelled only</option>
+        <option value="Returned">Returned only</option>
+      </select>
+    </div>
+    <div class="filter-group" style="flex:1; min-width:260px;">
+      <label>Category (click to toggle)</label>
+      <div class="chip-group" id="fCategory"></div>
+    </div>
+    <button class="reset-btn" id="resetBtn">Reset filters</button>
+  </div>
+  <div class="active-filter-note" id="filterNote"></div>
+
+  <div class="kpi-row">
+    <div class="kpi-cell"><div class="cell-ref">=SUM(Revenue)</div><div class="kpi-value" id="kpiRevenue">–</div><div class="kpi-label">Revenue in view</div></div>
+    <div class="kpi-cell"><div class="cell-ref">=COUNT(Orders)</div><div class="kpi-value" id="kpiOrders">–</div><div class="kpi-label">Orders in view</div></div>
+    <div class="kpi-cell"><div class="cell-ref">=AVERAGE(AOV)</div><div class="kpi-value" id="kpiAOV">–</div><div class="kpi-label">Avg order value</div></div>
+    <div class="kpi-cell"><div class="cell-ref">=COUNT(Customers)</div><div class="kpi-value" id="kpiCustomers">–</div><div class="kpi-label">Unique customers</div></div>
+    <div class="kpi-cell"><div class="cell-ref">=RETENTION()</div><div class="kpi-value" id="kpiRetention">–</div><div class="kpi-label">Repeat-customer rate</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="chart-card"><h3>Monthly Revenue</h3><canvas id="chartMonthly" height="110"></canvas></div>
+    <div class="chart-card"><h3>Order Status</h3><canvas id="chartStatus" height="110"></canvas></div>
+  </div>
+
+  <div class="grid3">
+    <div class="chart-card"><h3>Revenue by Category</h3><canvas id="chartCategory" height="160"></canvas></div>
+    <div class="chart-card"><h3>Revenue by City</h3><canvas id="chartCity" height="160"></canvas></div>
+    <div class="chart-card"><h3>Payment Method Mix</h3><canvas id="chartPayment" height="160"></canvas></div>
+  </div>
+
+  <div class="table-card">
+    <div class="table-head"><h3>Category Breakdown (filtered)</h3></div>
+    <table id="dataTable">
+      <thead><tr><th>Category</th><th>Orders</th><th>Revenue</th><th>Avg Order Value</th></tr></thead>
+      <tbody id="tableBody"></tbody>
+    </table>
+    <div class="pager">
+      <span id="pagerInfo"></span>
+    </div>
+  </div>
+
+  <footer>Exclusive E-Commerce Data Analysis — interactive dashboard by Debasish Panda · Built with SQL · Excel · Power BI · Python</footer>
+</div>
+
+<script>
+const NAVY='#0E3B36', GOLD='#B4862B', ROSE='#9C3B3B', SLATE='#5C7A73', SAND='#C9A96B';
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.color = '#4B5A5C';
+
+const RAW = window.DASH_DATA; // {keys:[m,c,p,ci,s,a,rv,cu], rows:[[...]]}
+const IDX = {}; RAW.keys.forEach((k,i)=>IDX[k]=i);
+
+const months = [...new Set(RAW.rows.map(r=>r[IDX.m]))].sort();
+const cities = [...new Set(RAW.rows.map(r=>r[IDX.ci]))].sort();
+const payments = [...new Set(RAW.rows.map(r=>r[IDX.p]))].sort();
+const categories = [...new Set(RAW.rows.map(r=>r[IDX.c]))].sort();
+
+// populate month selects
+const mFrom = document.getElementById('fMonthFrom');
+const mTo = document.getElementById('fMonthTo');
+months.forEach(m=>{
+  mFrom.innerHTML += `<option value="${m}">${m}</option>`;
+  mTo.innerHTML += `<option value="${m}">${m}</option>`;
+});
+mFrom.value = months[0]; mTo.value = months[months.length-1];
+
+cities.forEach(c=> document.getElementById('fCity').innerHTML += `<option value="${c}">${c}</option>`);
+payments.forEach(p=> document.getElementById('fPayment').innerHTML += `<option value="${p}">${p}</option>`);
+
+const catBox = document.getElementById('fCategory');
+let activeCats = new Set(); // empty = all
+categories.forEach(c=>{
+  const chip = document.createElement('div');
+  chip.className = 'chip';
+  chip.textContent = c;
+  chip.onclick = () => {
+    if (activeCats.has(c)) activeCats.delete(c); else activeCats.add(c);
+    chip.classList.toggle('active');
+    render();
+  };
+  catBox.appendChild(chip);
+});
+
+function currentFilters(){
+  return {
+    from: mFrom.value, to: mTo.value,
+    city: document.getElementById('fCity').value,
+    payment: document.getElementById('fPayment').value,
+    status: document.getElementById('fStatus').value,
+    cats: activeCats
+  };
+}
+
+function filterRows(){
+  const f = currentFilters();
+  return RAW.rows.filter(r=>{
+    if (r[IDX.m] < f.from || r[IDX.m] > f.to) return false;
+    if (f.city && r[IDX.ci] !== f.city) return false;
+    if (f.payment && r[IDX.p] !== f.payment) return false;
+    if (f.status && r[IDX.s] !== f.status) return false;
+    if (f.cats.size > 0 && !f.cats.has(r[IDX.c])) return false;
+    return true;
+  });
+}
+
+let charts = {};
+function upsertChart(id, config){
+  if (charts[id]) charts[id].destroy();
+  charts[id] = new Chart(document.getElementById(id), config);
+}
+
+function fmtINR(n){
+  if (n >= 10000000) return '₹'+(n/10000000).toFixed(2)+'Cr';
+  if (n >= 100000) return '₹'+(n/100000).toFixed(1)+'L';
+  return '₹'+Math.round(n).toLocaleString('en-IN');
+}
+
+let currentPage = 0;
+const PAGE_SIZE = 8;
+
+function render(){
+  const rows = filterRows();
+  const completed = rows.filter(r=>r[IDX.s] !== 'Cancelled');
+
+  const totalRevenue = completed.reduce((s,r)=>s+r[IDX.rv],0);
+  const totalOrders = completed.length;
+  const aov = totalOrders ? totalRevenue/totalOrders : 0;
+  const custSet = new Set(rows.map(r=>r[IDX.cu]));
+  const custCounts = {};
+  rows.forEach(r=> custCounts[r[IDX.cu]] = (custCounts[r[IDX.cu]]||0)+1 );
+  const repeat = Object.values(custCounts).filter(c=>c>1).length;
+  const retention = custSet.size ? (100*repeat/custSet.size) : 0;
+
+  document.getElementById('kpiRevenue').textContent = fmtINR(totalRevenue);
+  document.getElementById('kpiOrders').textContent = totalOrders.toLocaleString('en-IN');
+  document.getElementById('kpiAOV').textContent = fmtINR(aov);
+  document.getElementById('kpiCustomers').textContent = custSet.size.toLocaleString('en-IN');
+  document.getElementById('kpiRetention').textContent = retention.toFixed(1)+'%';
+
+  const f = currentFilters();
+  const parts = [];
+  if (f.city) parts.push('City: '+f.city);
+  if (f.payment) parts.push('Payment: '+f.payment);
+  if (f.status) parts.push('Status: '+f.status);
+  if (f.cats.size) parts.push('Categories: '+[...f.cats].join(', '));
+  document.getElementById('filterNote').textContent = parts.length
+    ? '● Active filters — ' + parts.join(' · ') + ` (${rows.length.toLocaleString('en-IN')} of ${RAW.rows.length.toLocaleString('en-IN')} rows)`
+    : `Showing all ${RAW.rows.length.toLocaleString('en-IN')} transactions, ${f.from} to ${f.to}`;
+
+  // Monthly revenue
+  const byMonth = {};
+  months.forEach(m=>byMonth[m]=0);
+  completed.forEach(r=>{ byMonth[r[IDX.m]] = (byMonth[r[IDX.m]]||0) + r[IDX.rv]; });
+  const visibleMonths = months.filter(m=>m>=f.from && m<=f.to);
+  upsertChart('chartMonthly', {
+    type:'line',
+    data:{ labels:visibleMonths, datasets:[{ data:visibleMonths.map(m=>byMonth[m]), borderColor:NAVY, backgroundColor:'rgba(14,59,54,0.08)', fill:true, tension:.35, pointRadius:2, borderWidth:2 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ y:{ticks:{callback:v=>fmtINR(v)}}, x:{ticks:{maxRotation:60,minRotation:60,font:{size:9}}} } }
+  });
+
+  // Order status
+  const statusCount = {};
+  rows.forEach(r=> statusCount[r[IDX.s]] = (statusCount[r[IDX.s]]||0)+1 );
+  upsertChart('chartStatus', {
+    type:'doughnut',
+    data:{ labels:Object.keys(statusCount), datasets:[{ data:Object.values(statusCount), backgroundColor:[NAVY,ROSE,SAND], borderColor:'#FFFEFB', borderWidth:2 }]},
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:12,font:{size:10}}}} }
+  });
+
+  // Category revenue
+  const catRev = {};
+  completed.forEach(r=> catRev[r[IDX.c]] = (catRev[r[IDX.c]]||0) + r[IDX.rv] );
+  const catLabels = Object.keys(catRev).sort((a,b)=>catRev[b]-catRev[a]);
+  upsertChart('chartCategory', {
+    type:'bar',
+    data:{ labels:catLabels, datasets:[{ data:catLabels.map(c=>catRev[c]), backgroundColor:GOLD, borderRadius:2 }]},
+    options:{ indexAxis:'y', plugins:{legend:{display:false}}, scales:{ x:{ticks:{callback:v=>fmtINR(v)}} } }
+  });
+
+  // City revenue
+  const cityRev = {};
+  completed.forEach(r=> cityRev[r[IDX.ci]] = (cityRev[r[IDX.ci]]||0) + r[IDX.rv] );
+  const cityLabels = Object.keys(cityRev).sort((a,b)=>cityRev[b]-cityRev[a]);
+  upsertChart('chartCity', {
+    type:'bar',
+    data:{ labels:cityLabels, datasets:[{ data:cityLabels.map(c=>cityRev[c]), backgroundColor:SLATE, borderRadius:2 }]},
+    options:{ plugins:{legend:{display:false}}, scales:{ x:{ticks:{font:{size:9}}}, y:{ticks:{callback:v=>fmtINR(v)}} } }
+  });
+
+  // Payment mix
+  const payCount = {};
+  rows.forEach(r=> payCount[r[IDX.p]] = (payCount[r[IDX.p]]||0)+1 );
+  upsertChart('chartPayment', {
+    type:'doughnut',
+    data:{ labels:Object.keys(payCount), datasets:[{ data:Object.values(payCount), backgroundColor:[NAVY,GOLD,SLATE,SAND,ROSE], borderColor:'#FFFEFB', borderWidth:2 }]},
+    options:{ plugins:{legend:{position:'bottom', labels:{boxWidth:12,font:{size:9}}}} }
+  });
+
+  // Table
+  const tbody = document.getElementById('tableBody');
+  tbody.innerHTML = '';
+  catLabels.forEach(c=>{
+    const orders = completed.filter(r=>r[IDX.c]===c).length;
+    const rev = catRev[c];
+    const aovc = orders ? rev/orders : 0;
+    tbody.innerHTML += `<tr><td>${c}</td><td>${orders.toLocaleString('en-IN')}</td><td>${fmtINR(rev)}</td><td>${fmtINR(aovc)}</td></tr>`;
+  });
+  document.getElementById('pagerInfo').textContent = `${catLabels.length} categories in view`;
+}
+
+[mFrom, mTo, document.getElementById('fCity'), document.getElementById('fPayment'), document.getElementById('fStatus')]
+  .forEach(el => el.addEventListener('change', render));
+
+document.getElementById('resetBtn').onclick = () => {
+  mFrom.value = months[0]; mTo.value = months[months.length-1];
+  document.getElementById('fCity').value = '';
+  document.getElementById('fPayment').value = '';
+  document.getElementById('fStatus').value = '';
+  activeCats.clear();
+  document.querySelectorAll('.chip').forEach(c=>c.classList.remove('active'));
+  render();
+};
+
+render();
+</script>
+</body>
+</html>
